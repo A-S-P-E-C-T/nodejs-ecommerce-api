@@ -19,12 +19,12 @@ const ratingSchema = new Schema(
             type: String,
             required: true,
         },
-        reviewImageUrl: {
-            type: String,
-        },
-        reviewImagePublicId: {
-            type: String,
-        },
+        reviewImages: [
+            {
+                imageUrl: String,
+                imagePunlicId: String,
+            },
+        ],
         reviewedBy: {
             type: mongoose.Types.ObjectId,
             ref: "User",
@@ -34,6 +34,6 @@ const ratingSchema = new Schema(
     { timestamps: true }
 );
 
-reviewSchema.index({ product: 1, reviewedBy: 1 }, { unique: true }); //each user to review a product only once
+ratingSchema.index({ product: 1, reviewedBy: 1 }, { unique: true }); //each user to review a product only once
 
 export const Rating = mongoose.model("Rating", ratingSchema);

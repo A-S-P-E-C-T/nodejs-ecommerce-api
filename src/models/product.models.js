@@ -43,23 +43,6 @@ const productSchema = new Schema(
             type: Number,
             default: 0,
         },
-        offers: [
-            {
-                type: mongoose.Types.ObjectId,
-                ref: "Offer",
-            },
-        ],
-        rating: {
-            type: Number,
-            default: 0,
-            index: true, // useful if sorting by rating
-        },
-        reviews: [
-            {
-                type: mongoose.Types.ObjectId,
-                ref: "Review",
-            },
-        ],
         lastMonthSale: {
             type: Number,
             default: 0,
