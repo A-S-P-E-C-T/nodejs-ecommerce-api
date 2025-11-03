@@ -210,4 +210,38 @@ const getProductRatings = asyncHandler(async (req, res) => {
         );
 });
 
-export { addRating, updateRating, deleteRating, getProductRatings };
+const getUserRatings = asyncHandler(async (req, res) => {
+    const loggedInUser = req.user;
+
+    if (!loggedInUser) {
+        throw new ApiError(409, "User not logged in.");
+    }
+
+    if (loggedInUser.role !== "customer") {
+        throw new ApiError(409, "Permission denied.");
+    }
+
+    const ratings = await Rating.find({ reviewedBy: loggedInUser._id });
+
+    if (!ratings || ratings.length === 0) {
+        throw new ApiError(404, "User has not rated any product.");
+    }
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                ratings,
+                "Ratings by the user fetched successfully."
+            )
+        );
+});
+
+export {
+    addRating,
+    updateRating,
+    deleteRating,
+    getProductRatings,
+    getUserRatings,
+};
