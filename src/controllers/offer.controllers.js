@@ -103,4 +103,17 @@ const deleteOffer = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, {}, "Offer deleted."));
 });
 
-export { createOffer, updateOffer, deleteOffer };
+const getActiveOffers = asyncHandler(async (req, res) => {
+    const activeOffers = await Offer.find({
+        offerExpiry: { $gt: Date.now() },
+    });
+
+    let message = "Active offers fetched successfully.";
+    if (!activeOffers || activeOffers.length === 0) {
+        message = "No active offers available.";
+    }
+
+    return res.status(200).json(new ApiResponse(200, activeOffers, message));
+});
+
+export { createOffer, updateOffer, deleteOffer, getActiveOffers };
