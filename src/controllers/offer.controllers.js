@@ -77,4 +77,30 @@ const updateOffer = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, offer, "Offer updated successfully."));
 });
 
-export { createOffer, updateOffer };
+const deleteOffer = asyncHandler(async (req, res) => {
+    const loggedInUser = req.user;
+
+    if (!loggedInUser) {
+        throw new ApiError(400, "User not logged in.");
+    }
+
+    if (loggedInUser.role === "customer") {
+        throw new ApiError(409, "Permission denied.");
+    }
+    const { offerId } = req.params;
+    if (!offerId) {
+        throw new ApiError(400, "Offer Id is required.");
+    }
+
+    const offer = await Offer.findByIdAndDelete(
+        new mongoose.Types.ObjectId(offerId)
+    );
+
+    if (!offer) {
+        throw new ApiError(404, "Offer does not exist.");
+    }
+
+    return res.status(200).json(new ApiResponse(200, {}, "Offer deleted."));
+});
+
+export { createOffer, updateOffer, deleteOffer };
