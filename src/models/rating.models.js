@@ -22,7 +22,7 @@ const ratingSchema = new Schema(
         reviewImages: [
             {
                 imageUrl: String,
-                imagePunlicId: String,
+                imagePublicId: String,
             },
         ],
         reviewedBy: {

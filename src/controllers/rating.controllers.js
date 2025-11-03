@@ -155,4 +155,59 @@ const deleteRating = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, {}, "Rating deleted successfully."));
 });
 
-export { addRating, updateRating, deleteRating };
+const getProductRatings = asyncHandler(async (req, res) => {
+    const { productId } = req.params;
+
+    if (!productId) {
+        throw new ApiError(400, "Product Id is needed.");
+    }
+
+    const productRatings = await Rating.aggregate([
+        {
+            $match: {
+                product: new mongoose.Types.ObjectId(productId),
+            },
+        },
+        {
+            $group: {
+                _id: "$product",
+                averageRating: { $avg: "$ratedStars" },
+                totalRatings: { $sum: 1 },
+                reviews: {
+                    $push: {
+                        ratedStars: "$ratedStars",
+                        reviewText: "$reviewText",
+                        reviewImages: "$reviewImages.imageUrl", // already an array; no need to wrap again
+                        reviewedBy: "$reviewedBy",
+                        createdAt: "$createdAt",
+                    },
+                },
+            },
+        },
+        {
+            $project: {
+                _id: 0,
+                product: "$_id",
+                averageRating: { $round: ["$averageRating", 1] },
+                totalRatings: 1,
+                reviews: 1,
+            },
+        },
+    ]);
+
+    if (!productRatings || productRatings.length === 0) {
+        throw new ApiError(404, "No ratings found for this product.");
+    }
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                productRatings[0],
+                "Rating and reviews fetched successfully."
+            )
+        );
+});
+
+export { addRating, updateRating, deleteRating, getProductRatings };

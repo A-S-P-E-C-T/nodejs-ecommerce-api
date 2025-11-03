@@ -4,6 +4,7 @@ import {
     addRating,
     updateRating,
     deleteRating,
+    getProductRatings,
 } from "../controllers/rating.controllers.js";
 import { upload } from "../middlewares/multer.middlewares.js";
 
@@ -12,5 +13,6 @@ const ratingRouter = Router();
 ratingRouter.route("/add-rating").post(verifyJWT, upload.any(), addRating);
 ratingRouter.route("/update-rating").patch(verifyJWT, updateRating);
 ratingRouter.route("/delete-rating/:productId").delete(verifyJWT, deleteRating);
+ratingRouter.route("/get-product-ratings/:productId").get(getProductRatings);
 
 export { ratingRouter };
