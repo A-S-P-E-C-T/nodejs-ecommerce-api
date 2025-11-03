@@ -11,6 +11,10 @@ const offerSchema = new Schema(
             required: true,
             min: 0,
         },
+        offerExpiry: {
+            type: Date,
+            required: true,
+        },
         offeredBy: {
             label: {
                 type: String,

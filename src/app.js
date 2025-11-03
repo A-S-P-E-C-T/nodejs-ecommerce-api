@@ -28,6 +28,7 @@ import { productRouter } from "./routes/product.routes.js";
 import { cartRouter } from "./routes/cart.routes.js";
 import { orderRouter } from "./routes/order.routes.js";
 import { ratingRouter } from "./routes/rating.routes.js";
+import { offerRouter } from "./routes/offer.routes.js";
 
 app.use("/api/v1/healthcheck", healthcheckRouter);
 app.use("/api/v1/users", userRouter);
@@ -35,6 +36,7 @@ app.use("/api/v1/products", productRouter);
 app.use("/api/v1/carts", cartRouter);
 app.use("/api/v1/orders", orderRouter);
 app.use("/api/v1/ratings", ratingRouter);
+app.use("/api/v1/offers", offerRouter);
 
 app.use(globalErrorHandler); //Must be at last
 
