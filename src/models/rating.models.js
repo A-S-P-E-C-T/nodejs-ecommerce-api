@@ -28,7 +28,7 @@ const ratingSchema = new Schema(
         reviewedBy: {
             type: mongoose.Types.ObjectId,
             ref: "User",
-            required: true,
+            required: false,
         },
     },
     { timestamps: true }

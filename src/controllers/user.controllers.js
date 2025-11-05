@@ -344,7 +344,13 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 
     return res
         .status(200)
-        .json(new ApiResponse(200, {}, "Current user fetched successfully."));
+        .json(
+            new ApiResponse(
+                200,
+                currentUser,
+                "Current user fetched successfully."
+            )
+        );
 });
 
 const resendEmailVerificationRequest = asyncHandler(async (req, res) => {
@@ -540,8 +546,12 @@ const updateUserAccountDetails = asyncHandler(async (req, res) => {
         throw new ApiError(400, "No logged in user found.");
     }
 
-    if (!(userName || fullName || role)) {
+    if (!(userName || fullName)) {
         throw new ApiError(400, "Please provide atleast one field to update.");
+    }
+
+    if (user.findOne({ userName: userName })) {
+        throw new ApiError(409, "A user with theis username already exists.");
     }
 
     const user = await User.findByIdAndUpdate(
@@ -720,10 +730,15 @@ const deleteUser = asyncHandler(async (req, res) => {
         throw new ApiError(404, "User does not exist.");
     }
 
-    // delete all ratings made by the user
-    await Rating.deleteMany({
-        reviewedBy: user._id,
-    });
+    // Anonymizing all ratings made by the user
+    await Rating.updateMany(
+        {
+            reviewedBy: user._id,
+        },
+        {
+            $set: { reviewedBy: null },
+        }
+    );
 
     return res
         .status(200)
