@@ -13,11 +13,11 @@ const addProduct = asyncHandler(async (req, res) => {
     const loggedInUser = req.user;
 
     if (!loggedInUser) {
-        throw new ApiError(400, "No Admin/Seller logged in.");
+        throw new ApiError(400, "No seller logged in.");
     }
 
-    if (loggedInUser.role !== "seller" && loggedInUser.role !== "admin") {
-        throw new ApiError(400, "Unauthorized request.");
+    if (loggedInUser.role !== "seller") {
+        throw new ApiError(400, "Only sellers can add products.");
     }
 
     const {
