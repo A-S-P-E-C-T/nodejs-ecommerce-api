@@ -55,12 +55,6 @@ const userSchema = new Schema(
             pin: { type: String, trim: true },
             country: { type: String, trim: true },
         },
-        // orders: [
-        //     {
-        //         type: Schema.Types.ObjectId,
-        //         ref: "Order",
-        //     },
-        // ],
         refreshToken: {
             type: String,
         },
@@ -123,11 +117,11 @@ userSchema.methods.generateRefreshToken = function () {
 
 userSchema.methods.generateTemporaryToken = function () {
     const unhashedToken = crypto.randomBytes(20).toString("hex");
-    const hashedToken = crypto // stored in db
+    const hashedToken = crypto // Stored in DB
         .createHash("sha256")
         .update(unhashedToken)
         .digest("hex");
-    const tokenExpiry = Date.now() + 20 * 60 * 1000; //20 minutes
+    const tokenExpiry = Date.now() + 20 * 60 * 1000; // 20 minutes
 
     return { unhashedToken, hashedToken, tokenExpiry };
 };

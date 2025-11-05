@@ -1,4 +1,3 @@
-import mongoose from "mongoose";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -16,8 +15,8 @@ import {
 } from "../utils/mail.js";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
-import { stat } from "fs";
-import SendmailTransport from "nodemailer/lib/sendmail-transport/index.js";
+import { Rating } from "../models/rating.models.js";
+import ms from "ms";
 
 const generateAccessAndRefreshToken = async (userId) => {
     try {
@@ -78,7 +77,6 @@ const registerUser = asyncHandler(async (req, res) => {
 
     if (!avatar) {
         throw new ApiError(505, "Avatar upload failed");
-        //Clear local file
     }
 
     const newUser = await User.create({
@@ -106,7 +104,6 @@ const registerUser = asyncHandler(async (req, res) => {
 
     if (!cretedUser) {
         await deleteFromCloudinary(avatar?.public_id);
-        await deleteFromCloudinary(coverImage?.public_id);
         throw new ApiError(501, "User not created.");
     }
 
@@ -144,6 +141,7 @@ const loginUser = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Password is required.");
     }
 
+    // Find a user whose username or email matches the given values
     const user = await User.findOne({
         $or: [{ userName: userName }, { email: email }],
     });
@@ -160,20 +158,30 @@ const loginUser = asyncHandler(async (req, res) => {
         user._id
     );
 
+    // Get logged-in user's details without the sensitive fields
     const loggedInUser = await User.findById(user._id).select(
         "-password -refreshToken"
     );
 
-    const options = {
-        //For cookies
+    // Cookie options to keep it safe: only server can access, sent only over HTTPS
+    // Refresh token cookie options
+    const refreshTokenOptions = {
         httpOnly: true,
         secure: true,
+        maxAge: ms(process.env.REFRESH_TOKEN_EXPIRY), // Convert to milliseconds
+    };
+
+    // Access token cookie options
+    const accessTokenOptions = {
+        httpOnly: true,
+        secure: true,
+        maxAge: ms(process.env.ACCESS_TOKEN_EXPIRY),
     };
 
     return res
         .status(200)
-        .cookie("refreshToken", refreshToken, options)
-        .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", refreshToken, refreshTokenOptions)
+        .cookie("accessToken", accessToken, accessTokenOptions)
         .json(
             new ApiResponse(200, loggedInUser, "User logged in successfully.")
         );
@@ -185,8 +193,6 @@ const logoutUser = asyncHandler(async (req, res) => {
     if (!loggedInUser) {
         throw new ApiError(400, "No logged in user.");
     }
-
-    console.log(loggedInUser);
 
     const user = await User.findByIdAndUpdate(
         loggedInUser._id,
@@ -205,10 +211,10 @@ const logoutUser = asyncHandler(async (req, res) => {
         throw new ApiError(404, "User does not exist.");
     }
 
+    // Save user without running validation checks
     user.save({ validateBeforeSave: false });
 
     const options = {
-        //For cookies
         httpOnly: true,
         secure: true,
     };
@@ -217,7 +223,7 @@ const logoutUser = asyncHandler(async (req, res) => {
         .status(200)
         .clearCookie("refreshToken", options)
         .clearCookie("accessToken", options)
-        .json(new ApiResponse(200, {}, "User logout successfully."));
+        .json(new ApiResponse(200, {}, "User logout successful."));
 });
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
@@ -233,11 +239,12 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         process.env.REFRESH_TOKEN_SECRET
     );
 
+    // Fixed the missing declearation of user
+    const user = await User.findById(verifiedRefreshToken._id);
+
     if (!user) {
         throw new ApiError(403, "Invalid referesh token");
     }
-
-    console.log(verifiedRefreshToken?.tokenVersion);
 
     if (
         user?.refreshToken !== incomingRefreshToken ||
@@ -250,15 +257,22 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         user._id
     );
 
-    const options = {
+    const refreshTokenOptions = {
         httpOnly: true,
         secure: true,
+        maxAge: ms(process.env.REFRESH_TOKEN_EXPIRY),
+    };
+
+    const accessTokenOptions = {
+        httpOnly: true,
+        secure: true,
+        maxAge: ms(process.env.ACCESS_TOKEN_EXPIRY),
     };
 
     return res
         .status(200)
-        .cookie("refreshToken", refreshToken, options)
-        .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", refreshToken, refreshTokenOptions)
+        .cookie("accessToken", accessToken, accessTokenOptions)
         .json(new ApiResponse(200, {}, "Access token refreshed successfully."));
 });
 
@@ -291,21 +305,34 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     }
 
     user.password = newPassword;
-    user.refreshToken = "";
-    user.tokenVersion += 1;
+    user.refreshToken = ""; // Invalidate the old refresh token
+    user.tokenVersion += 1; // Invalidate all older tokens by incrementing token version
 
     await user.save();
 
-    const options = {
+    // Generate new tokens after changing the password
+    const { refreshToken, accessToken } = await generateAccessAndRefreshToken(
+        user._id
+    );
+
+    // Set the cookie options for new tokens
+    const refreshTokenOptions = {
         httpOnly: true,
         secure: true,
+        maxAge: ms(process.env.REFRESH_TOKEN_EXPIRY),
+    };
+
+    const accessTokenOptions = {
+        httpOnly: true,
+        secure: true,
+        maxAge: ms(process.env.ACCESS_TOKEN_EXPIRY),
     };
 
     return res
         .status(200)
-        .clearCookie("refreshToken", options)
-        .clearCookie("accessToken", options)
-        .json(new ApiResponse(200, {}, "Password changed successfuly."));
+        .cookie("refreshToken", refreshToken, refreshTokenOptions)
+        .cookie("accessToken", accessToken, accessTokenOptions)
+        .json(new ApiResponse(200, {}, "Password changed successfully."));
 });
 
 const getCurrentUser = asyncHandler(async (req, res) => {
@@ -687,6 +714,15 @@ const deleteUser = asyncHandler(async (req, res) => {
     const user = await User.findOneAndDelete({
         deleteUserVerificationToken: incomingHashedToken.trim(),
         deleteUserVerificationExpiry: { $gt: Date.now() },
+    });
+
+    if (!user) {
+        throw new ApiError(404, "User does not exist.");
+    }
+
+    // delete all ratings made by the user
+    await Rating.deleteMany({
+        reviewedBy: user._id,
     });
 
     return res

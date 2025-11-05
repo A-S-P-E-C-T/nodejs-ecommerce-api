@@ -7,6 +7,7 @@ import {
     uploadOnCloudinary,
     deleteFromCloudinary,
 } from "../utils/cloudinary.js";
+import { Rating } from "../models/rating.models.js";
 
 const addProduct = asyncHandler(async (req, res) => {
     const loggedInUser = req.user;
@@ -248,8 +249,16 @@ const deleteProduct = asyncHandler(async (req, res) => {
         });
     }
 
-    await Product.findOneAndDelete({
+    const product = await Product.findOneAndDelete({
         _id: new mongoose.Types.ObjectId(productId),
+    });
+
+    if (!product) {
+        throw new ApiError(404, "Product does not exist.");
+    }
+
+    await Rating.deleteMany({
+        product: new mongoose.Types.ObjectId(productId),
     });
 
     return res
