@@ -3,6 +3,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { Cart } from "../models/cart.models.js";
+import { Product } from "../models/product.models.js";
 
 const addItemToCart = asyncHandler(async (req, res) => {
     const loggedInUser = req.user;
@@ -11,9 +12,7 @@ const addItemToCart = asyncHandler(async (req, res) => {
         throw new ApiError(400, "No user logged in.");
     }
 
-    console.log(req.body);
-
-    const { productId, quantity, price } = req.body;
+    const { productId, quantity } = req.body;
 
     if (!productId) {
         throw new ApiError(400, "Product id is needed.");
@@ -23,8 +22,12 @@ const addItemToCart = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Quantity must be greater than zero.");
     }
 
-    if (!price || price < 0) {
-        throw new ApiError(400, "Price must be a positive number.");
+    let product = await Product.findById(
+        new mongoose.Types.ObjectId(productId)
+    );
+
+    if (!product) {
+        throw new ApiError(404, "Product not found.");
     }
 
     let cart = await Cart.findOne({
@@ -37,9 +40,13 @@ const addItemToCart = asyncHandler(async (req, res) => {
             user: loggedInUser._id,
             items: [
                 {
-                    productId,
+                    "product.Id": product._id,
+                    "product.name": product.item.label,
+                    "product.color": product.item.color,
+                    "product.size": product.item.size,
+                    "product.brand": product.brand,
                     quantity,
-                    price,
+                    price: product.price,
                 },
             ],
         });
@@ -60,14 +67,18 @@ const addItemToCart = asyncHandler(async (req, res) => {
     }
 
     const existingItem = cart.items.find(
-        (item) => item.productId.toString() === productId
+        (item) => item.product.Id.toString() === productId
     );
 
     if (!existingItem) {
         cart.items.push({
-            productId,
+            "product.Id": product._id,
+            "product.name": product.item.label,
+            "product.color": product.item.color,
+            "product.size": product.item.size,
+            "product.brand": product.brand,
             quantity,
-            price,
+            price: product.price,
         });
     } else {
         existingItem.quantity += Number(quantity);
