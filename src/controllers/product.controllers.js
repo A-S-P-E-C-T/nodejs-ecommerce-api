@@ -45,18 +45,29 @@ const addProduct = asyncHandler(async (req, res) => {
             )
         );
     } catch (error) {
+        console.error("Cloudinary upload failed:", error);
+
+        // Cleanup partially uploaded images
         await Promise.all(
             images.map((file) => deleteFromCloudinary(file.public_id, "image"))
         );
+
+        // Remove local temp files
+        if (req.files.length !== 0) {
+            req.files.forEach((file) => fs.unlinkSync(file.path));
+        }
+
+        throw new ApiError(500, "Image upload failed. Please try again.");
     }
 
     if (!images || images.length === 0) {
         throw new ApiError(500, "No Product images uploaded.");
     }
 
-    const imagesUrls = images.map((image) => image.url);
-    const imagesPublicIds = images.map((image) => image.public_id);
-
+    const formattedImages = images.map((image) => ({
+        imageUrl: image.url,
+        imagePublicId: image.public_id,
+    }));
     const newProduct = await Product.create({
         item: {
             label,
@@ -70,9 +81,8 @@ const addProduct = asyncHandler(async (req, res) => {
         price,
         stock,
         isAvailable: stock >= 1,
-        imagesUrl: imagesUrls,
-        imagesPublicId: imagesPublicIds,
-        warrantyMonths: Number(warrantyMonths),
+        images: formattedImages,
+        warrantyMonths: Number(warrantyMonths) || 0,
     });
 
     if (!newProduct) {

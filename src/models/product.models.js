@@ -37,7 +37,12 @@ const productSchema = new Schema(
             default: true, // available by default
             index: true, // useful for filtering
         },
-        imagesUrl: [{ type: String, required: true }],
+        images: [
+            {
+                imageUrl: { type: String, required: true },
+                imagePublicId: { type: String, required: true },
+            },
+        ],
         imagesPublicId: [{ type: String, required: true }],
         warrantyMonths: {
             type: Number,
