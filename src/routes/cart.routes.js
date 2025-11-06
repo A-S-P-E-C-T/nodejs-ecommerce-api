@@ -14,6 +14,6 @@ cartRouter.route("/get-cart").get(verifyJWT, getUserCart);
 cartRouter.route("/updateItemQunatity").patch(verifyJWT, updateItemQuantity);
 cartRouter
     .route("/removeItemFromCart/:productId")
-    .post(verifyJWT, removeItemFromCart);
+    .delete(verifyJWT, removeItemFromCart);
 cartRouter.route("/clearCart").delete(verifyJWT, clearCart);
 export { cartRouter };
