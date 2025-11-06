@@ -101,15 +101,15 @@ To run this project, you will need to add the following environment variables to
 
 ## API Reference
 
-| Category        | Base Path          | Description                                  |
-| --------------- | ------------------ | -------------------------------------------- |
-| **Auth & User** | `/api/users`       | Register, login, profile, account management |
-| **Products**    | `/api/products`    | Add, update, delete, get products            |
-| **Cart**        | `/api/cart`        | Manage user’s cart                           |
-| **Orders**      | `/api/orders`      | Place and track orders                       |
-| **Ratings**     | `/api/ratings`     | Add or view product reviews                  |
-| **Offers**      | `/api/offers`      | Create and manage offers                     |
-| **Healthcheck** | `/api/healthcheck` | Server status check                          |
+| Category        | Base Path             | Description                                  |
+| --------------- | --------------------- | -------------------------------------------- |
+| **Auth & User** | `/api/v1/users`       | Register, login, profile, account management |
+| **Products**    | `/api/v1/products`    | Add, update, delete, get products            |
+| **Cart**        | `/api/v1/cart`        | Manage user’s cart                           |
+| **Orders**      | `/api/v1/orders`      | Place and track orders                       |
+| **Ratings**     | `/api/v1/ratings`     | Add or view product reviews                  |
+| **Offers**      | `/api/v1/offers`      | Create and manage offers                     |
+| **Healthcheck** | `/api/v1/healthcheck` | Server status check                          |
 
 📄 View Full API Documentation → |
 
