@@ -111,7 +111,7 @@ To run this project, you will need to add the following environment variables to
 | **Offers**      | `/api/v1/offers`      | Create and manage offers                     |
 | **Healthcheck** | `/api/v1/healthcheck` | Server status check                          |
 
-📄 [View Full API Documentation](API_DOCS)
+📄 [View Full API Documentation](https://github.com/A-S-P-E-C-T/nodejs-ecommerce-api/blob/main/API_DOCS.md)
 
 ## 🌱 Future Improvements
 
@@ -120,8 +120,6 @@ To run this project, you will need to add the following environment variables to
 - Admin dashboard
 
 - Product image hosting (Cloudinary / S3)
-
-- Email service integration
 
 - Rate limiting and request caching
 
