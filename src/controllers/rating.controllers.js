@@ -1,14 +1,12 @@
-import mongoose, { mongo } from "mongoose";
+import mongoose from "mongoose";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { Rating } from "../models/rating.models.js";
-import { Product } from "../models/product.models.js";
 import {
     uploadOnCloudinary,
     deleteFromCloudinary,
 } from "../utils/cloudinary.js";
-import { param } from "express-validator";
 
 const addRating = asyncHandler(async (req, res) => {
     const loggedInUser = req.user;
@@ -30,6 +28,10 @@ const addRating = asyncHandler(async (req, res) => {
         throw new ApiError(409, "Invalid rating.");
     }
 
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+        throw new ApiError(400, "Invalid product ID.");
+    }
+
     const existingRating = await Rating.findOne({
         product: productId,
         reviewedBy: loggedInUser._id,
@@ -49,18 +51,25 @@ const addRating = asyncHandler(async (req, res) => {
                 )
             );
         } catch (error) {
-            await Promise.all(
-                reviewImages.map((file) =>
-                    deleteFromCloudinary(file.public_id, "image")
-                )
-            );
+            // Delete already uploaded images (if partial upload happened)
+            if (reviewImages.length > 0) {
+                await Promise.all(
+                    reviewImages.map((img) =>
+                        deleteFromCloudinary(img.public_id, "image")
+                    )
+                );
+            }
+
+            // Delete local files
+            if (req.files.length !== 0) {
+                req.files.forEach((file) => fs.unlinkSync(file.path));
+            }
+
             throw new ApiError(500, "Error uploading images.");
         }
     }
 
-    if (!reviewImages || reviewImages.length === 0) {
-        throw new ApiError(500, "No Product images uploaded.");
-    }
+    // Allow text only reviews
 
     const formattedReviewImages = reviewImages.map((image) => ({
         imageUrl: image.url,
@@ -104,6 +113,10 @@ const updateRating = asyncHandler(async (req, res) => {
         throw new ApiError(409, "Invalid rating.");
     }
 
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+        throw new ApiError(400, "Invalid product ID.");
+    }
+
     const rating = await Rating.findOneAndUpdate(
         { product: productId, reviewedBy: loggedInUser._id },
         {
@@ -114,8 +127,6 @@ const updateRating = asyncHandler(async (req, res) => {
         },
         { new: true, runValidators: true }
     );
-
-    console.log(rating);
 
     if (!rating) {
         throw new ApiError(404, "Can not update rating.");
@@ -138,6 +149,10 @@ const deleteRating = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Product Id is required.");
     }
 
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+        throw new ApiError(400, "Invalid product ID.");
+    }
+
     const rating = await Rating.findOneAndDelete({
         product: new mongoose.Types.ObjectId(productId),
         reviewedBy: loggedInUser._id,
@@ -152,7 +167,7 @@ const deleteRating = asyncHandler(async (req, res) => {
 
     return res
         .status(200)
-        .json(new ApiResponse(200, {}, "Rating deleted successfully."));
+        .json(new ApiResponse(200, rating, "Rating deleted successfully."));
 });
 
 const getProductRatings = asyncHandler(async (req, res) => {
@@ -160,6 +175,10 @@ const getProductRatings = asyncHandler(async (req, res) => {
 
     if (!productId) {
         throw new ApiError(400, "Product Id is needed.");
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+        throw new ApiError(400, "Invalid product ID.");
     }
 
     const productRatings = await Rating.aggregate([
