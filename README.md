@@ -111,7 +111,7 @@ To run this project, you will need to add the following environment variables to
 | **Offers**      | `/api/v1/offers`      | Create and manage offers                     |
 | **Healthcheck** | `/api/v1/healthcheck` | Server status check                          |
 
-📄 View Full API Documentation → |
+📄 [View Full API Documentation](API_DOCS)
 
 ## 🌱 Future Improvements
 
