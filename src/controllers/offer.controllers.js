@@ -8,17 +8,17 @@ const createOffer = asyncHandler(async (req, res) => {
     const loggedInUser = req.user;
 
     if (!loggedInUser) {
-        throw new ApiError(400, "User not logged in.");
+        throw new ApiError(401, "User not logged in.");
     }
 
     if (loggedInUser.role === "customer") {
-        throw new ApiError(409, "Permission denied.");
+        throw new ApiError(403, "Permission denied.");
     }
 
     const { statement, discountPercent, offerExpiry } = req.body;
 
     if (!(statement && discountPercent)) {
-        throw new ApiError(400, "All fields are required.");
+        throw new ApiError(400, "All required fields must be provided.");
     }
 
     const newOffer = await Offer.create({
@@ -28,39 +28,48 @@ const createOffer = asyncHandler(async (req, res) => {
         "offeredBy.label": String(loggedInUser.role),
     });
 
-    const cretedOffer = await Offer.findById(newOffer._id);
+    const createdOffer = await Offer.findById(newOffer._id);
 
-    if (!cretedOffer) {
-        throw new ApiError(500, "Error creating offer.");
+    if (!createdOffer) {
+        throw new ApiError(500, "Failed to create offer.");
     }
 
     return res
-        .status(200)
-        .json(new ApiResponse(200, cretedOffer, "Offer created successfully."));
+        .status(201)
+        .json(
+            new ApiResponse(201, createdOffer, "Offer created successfully.")
+        );
 });
 
 const updateOffer = asyncHandler(async (req, res) => {
     const loggedInUser = req.user;
 
     if (!loggedInUser) {
-        throw new ApiError(400, "User not logged in.");
+        throw new ApiError(401, "User not logged in.");
     }
 
     if (loggedInUser.role === "customer") {
-        throw new ApiError(409, "Permission denied.");
+        throw new ApiError(403, "Permission denied.");
     }
+
     const { offerId } = req.params;
+
     if (!offerId) {
-        throw new ApiError(400, "Offer Id is required.");
+        throw new ApiError(400, "Offer ID is required.");
     }
+
+    if (!mongoose.Types.ObjectId.isValid(offerId)) {
+        throw new ApiError(400, "Invalid offer ID.");
+    }
+
     const { statement, discountPercent, offerExpiry } = req.body;
 
     if (!(statement && discountPercent)) {
-        throw new ApiError(400, "All fields are required.");
+        throw new ApiError(400, "All required fields must be provided.");
     }
 
     const offer = await Offer.findByIdAndUpdate(
-        new mongoose.Types.ObjectId(offerId),
+        offerId,
         {
             statement: String(statement),
             discountPercent: Number(discountPercent),
@@ -72,6 +81,7 @@ const updateOffer = asyncHandler(async (req, res) => {
     if (!offer) {
         throw new ApiError(404, "Offer not found.");
     }
+
     return res
         .status(200)
         .json(new ApiResponse(200, offer, "Offer updated successfully."));
@@ -81,26 +91,32 @@ const deleteOffer = asyncHandler(async (req, res) => {
     const loggedInUser = req.user;
 
     if (!loggedInUser) {
-        throw new ApiError(400, "User not logged in.");
+        throw new ApiError(401, "User not logged in.");
     }
 
     if (loggedInUser.role === "customer") {
-        throw new ApiError(409, "Permission denied.");
-    }
-    const { offerId } = req.params;
-    if (!offerId) {
-        throw new ApiError(400, "Offer Id is required.");
+        throw new ApiError(403, "Permission denied.");
     }
 
-    const offer = await Offer.findByIdAndDelete(
-        new mongoose.Types.ObjectId(offerId)
-    );
+    const { offerId } = req.params;
+
+    if (!offerId) {
+        throw new ApiError(400, "Offer ID is required.");
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(offerId)) {
+        throw new ApiError(400, "Invalid offer ID.");
+    }
+
+    const offer = await Offer.findByIdAndDelete(offerId);
 
     if (!offer) {
-        throw new ApiError(404, "Offer does not exist.");
+        throw new ApiError(404, "Offer not found.");
     }
 
-    return res.status(200).json(new ApiResponse(200, {}, "Offer deleted."));
+    return res
+        .status(200)
+        .json(new ApiResponse(200, {}, "Offer deleted successfully."));
 });
 
 const getActiveOffers = asyncHandler(async (req, res) => {
@@ -108,10 +124,10 @@ const getActiveOffers = asyncHandler(async (req, res) => {
         offerExpiry: { $gt: Date.now() },
     });
 
-    let message = "Active offers fetched successfully.";
-    if (!activeOffers || activeOffers.length === 0) {
-        message = "No active offers available.";
-    }
+    const message =
+        !activeOffers || activeOffers.length === 0
+            ? "No active offers available."
+            : "Active offers fetched successfully.";
 
     return res.status(200).json(new ApiResponse(200, activeOffers, message));
 });

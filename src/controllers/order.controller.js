@@ -3,22 +3,20 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { Cart } from "../models/cart.models.js";
-import { User } from "../models/user.models.js";
 import { Order } from "../models/order.models.js";
-import { response } from "express";
 
 const createOrder = asyncHandler(async (req, res) => {
     const loggedInUser = req.user;
     const { offers } = req.body;
 
     if (!loggedInUser) {
-        throw new ApiError(409, "User not logged in");
+        throw new ApiError(401, "User not logged in.");
     }
 
     const cart = await Cart.findOne({ user: loggedInUser._id });
 
-    if (!cart || cart.length === 0) {
-        throw new ApiError(404, "No items in cart.");
+    if (!cart || cart.items.length === 0) {
+        throw new ApiError(400, "No items in the cart.");
     }
 
     const newOrder = await Order.create({
@@ -29,10 +27,7 @@ const createOrder = asyncHandler(async (req, res) => {
     });
 
     if (!newOrder) {
-        throw new ApiError(
-            500,
-            "Something went wrong while creating the order."
-        );
+        throw new ApiError(500, "Failed to create order. Please try again.");
     }
 
     return res
@@ -44,7 +39,7 @@ const getUserOrders = asyncHandler(async (req, res) => {
     const loggedInUser = req.user;
 
     if (!loggedInUser) {
-        throw new ApiError(409, "User not logged in");
+        throw new ApiError(401, "User not logged in.");
     }
 
     const userOrders = await Order.aggregate([
@@ -61,7 +56,7 @@ const getUserOrders = asyncHandler(async (req, res) => {
     ]);
 
     if (!userOrders || userOrders.length === 0) {
-        throw new ApiError(209, "No orders found.");
+        throw new ApiError(404, "No orders found.");
     }
 
     return res
@@ -80,11 +75,15 @@ const getSingleOrder = asyncHandler(async (req, res) => {
     const { orderId } = req.params;
 
     if (!loggedInUser) {
-        throw new ApiError(409, "User not logged in");
+        throw new ApiError(401, "User not logged in.");
     }
 
     if (!orderId) {
-        throw new ApiError(400, "Order Id is required.");
+        throw new ApiError(400, "Order ID is required.");
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+        throw new ApiError(400, "Invalid order ID.");
     }
 
     const order = await Order.findOne({
@@ -93,7 +92,7 @@ const getSingleOrder = asyncHandler(async (req, res) => {
     });
 
     if (!order) {
-        throw new ApiError(404, "Oder not found");
+        throw new ApiError(404, "Order not found.");
     }
 
     return res
@@ -106,11 +105,15 @@ const cancelOrder = asyncHandler(async (req, res) => {
     const { orderId } = req.params;
 
     if (!loggedInUser) {
-        throw new ApiError(409, "User not logged in");
+        throw new ApiError(401, "User not logged in.");
     }
 
     if (!orderId) {
-        throw new ApiError(400, "Order Id is required.");
+        throw new ApiError(400, "Order ID is required.");
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+        throw new ApiError(400, "Invalid order ID.");
     }
 
     const order = await Order.findOne({
@@ -119,19 +122,24 @@ const cancelOrder = asyncHandler(async (req, res) => {
     });
 
     if (!order) {
-        throw new ApiError(404, "Oder not found");
+        throw new ApiError(404, "Order not found.");
     }
 
     if (
         order.orderStatus !== "confirmed" &&
         order.orderStatus !== "processing"
     ) {
-        throw new ApiError(409, "Order is shipped, cannot cancel the order.");
+        throw new ApiError(
+            409,
+            "Order is already shipped. Cannot cancel the order."
+        );
     }
 
     await order.deleteOne();
 
-    return res.status(200).json(new ApiResponse(200, {}, "Order cancelled."));
+    return res
+        .status(200)
+        .json(new ApiResponse(200, {}, "Order cancelled successfully."));
 });
 
 const updateOrderStatus = asyncHandler(async (req, res) => {
@@ -140,36 +148,33 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     const { orderStatus } = req.body;
 
     if (!loggedInUser) {
-        throw new ApiError(409, "User not logged in");
+        throw new ApiError(401, "User not logged in.");
     }
 
     if (loggedInUser.role === "customer") {
-        throw new ApiError(402, "Permission denied.");
+        throw new ApiError(403, "Permission denied.");
     }
 
     if (!orderId) {
-        throw new ApiError(400, "Order Id is required.");
+        throw new ApiError(400, "Order ID is required.");
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+        throw new ApiError(400, "Invalid order ID.");
     }
 
     if (!orderStatus) {
-        throw new ApiError(400, "Order Status is required.");
+        throw new ApiError(400, "Order status is required.");
     }
 
-    const order = await Order.findOneAndUpdate(
-        {
-            _id: orderId,
-            customer: loggedInUser._id,
-        },
-        {
-            $set: {
-                orderStatus: orderStatus,
-            },
-        },
+    const order = await Order.findByIdAndUpdate(
+        orderId,
+        { $set: { orderStatus } },
         { new: true, runValidators: true }
     );
 
     if (!order) {
-        throw new ApiError(404, "Oder not found");
+        throw new ApiError(404, "Order not found.");
     }
 
     return res
@@ -181,35 +186,40 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
 
 const getAllOrder = asyncHandler(async (req, res) => {
     const loggedInUser = req.user;
-    const { customer, orderStatus, date } = req.query; // Note
+    const { customer, orderStatus, date } = req.query;
 
     if (!loggedInUser) {
-        throw new ApiError(409, "User not logged in");
+        throw new ApiError(401, "User not logged in.");
     }
 
     if (loggedInUser.role !== "admin") {
-        throw new ApiError(402, "Permission denied.");
+        throw new ApiError(403, "Permission denied.");
     }
 
     if (!(customer || orderStatus || date)) {
-        throw new ApiError(400, "Atleast one filter is required.");
+        throw new ApiError(400, "At least one filter is required.");
     }
 
     const matchQuery = {};
 
-    if (customer) matchQuery.customer = new mongoose.Types.ObjectId(customer);
+    if (customer) {
+        if (!mongoose.Types.ObjectId.isValid(customer)) {
+            throw new ApiError(400, "Invalid customer ID.");
+        }
+        matchQuery.customer = customer;
+    }
     if (orderStatus) matchQuery.orderStatus = String(orderStatus);
     if (date) matchQuery.date = Date(date);
 
     const orders = await Order.find(matchQuery);
 
     if (!orders || orders.length === 0) {
-        throw new ApiError(404, "NO orders found for the given filters.");
+        throw new ApiError(404, "No orders found for the given filters.");
     }
 
     return res
         .status(200)
-        .json(new ApiResponse(200, orders, "Order fetched successfully."));
+        .json(new ApiResponse(200, orders, "Orders fetched successfully."));
 });
 
 export {
