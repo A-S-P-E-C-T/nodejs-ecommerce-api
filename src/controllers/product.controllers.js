@@ -187,10 +187,6 @@ const updateProduct = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Product Id is needed.");
     }
 
-    if (loggedInUser.role !== "seller") {
-        throw new ApiError(409, "Unauthorized request.");
-    }
-
     const { price, stock, isAvailable } = req.body;
     if (!(price || stock || isAvailable)) {
         throw new ApiError(400, "Please provide a field to update.");
@@ -201,25 +197,23 @@ const updateProduct = asyncHandler(async (req, res) => {
     if (stock !== undefined) updateFields.stock = stock;
     if (isAvailable !== undefined) updateFields.isAvailable = isAvailable;
 
-    let product = {};
+    let product;
+
     if (loggedInUser.role === "seller") {
         product = await Product.findOneAndUpdate(
-            {
-                _id: new mongoose.Types.ObjectId(productId),
-                seller: new mongoose.Types.ObjectId(loggedInUser._id),
-            },
+            { _id: productId, seller: loggedInUser._id },
             { $set: updateFields },
             { new: true }
         );
+    } else if (loggedInUser.role === "admin") {
+        product = await Product.findByIdAndUpdate(
+            productId,
+            { $set: updateFields },
+            { new: true }
+        );
+    } else {
+        throw new ApiError(403, "Unauthorized request.");
     }
-
-    product = await Product.findOneAndUpdate(
-        {
-            _id: new mongoose.Types.ObjectId(productId),
-        },
-        { $set: updateFields },
-        { new: true }
-    );
 
     if (!product) {
         throw new ApiError(404, "Product not found.");
@@ -244,24 +238,17 @@ const deleteProduct = asyncHandler(async (req, res) => {
 
     const { productId } = req.params;
 
-    if (!productId) {
-        throw new ApiError(400, "Product Id is needed.");
-    }
-
-    if (loggedInUser.role === "customer") {
-        throw new ApiError(409, "Unauthorized request.");
-    }
-
+    let product;
     if (loggedInUser.role === "seller") {
-        await Product.findOneAndDelete({
-            _id: new mongoose.Types.ObjectId(productId),
-            seller: new mongoose.Types.ObjectId(loggedInUser._id),
+        product = await Product.findOneAndDelete({
+            _id: productId,
+            seller: loggedInUser._id,
         });
+    } else if (loggedInUser.role === "admin") {
+        product = await Product.findByIdAndDelete(productId);
+    } else {
+        throw new ApiError(403, "Unauthorized request.");
     }
-
-    const product = await Product.findOneAndDelete({
-        _id: new mongoose.Types.ObjectId(productId),
-    });
 
     if (!product) {
         throw new ApiError(404, "Product does not exist.");
@@ -273,7 +260,7 @@ const deleteProduct = asyncHandler(async (req, res) => {
 
     return res
         .status(200)
-        .json(new ApiResponse(200, {}, "Product deleted Successfully."));
+        .json(new ApiResponse(200, product, "Product deleted Successfully."));
 });
 
 export {
