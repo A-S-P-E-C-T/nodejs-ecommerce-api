@@ -9,30 +9,30 @@ const addItemToCart = asyncHandler(async (req, res) => {
     const loggedInUser = req.user;
 
     if (!loggedInUser) {
-        throw new ApiError(400, "No user logged in.");
+        throw new ApiError(401, "User not logged in.");
     }
 
     const { productId, quantity } = req.body;
 
     if (!productId) {
-        throw new ApiError(400, "Product id is needed.");
+        throw new ApiError(400, "Product ID is required.");
     }
 
     if (!quantity || quantity <= 0) {
         throw new ApiError(400, "Quantity must be greater than zero.");
     }
 
-    let product = await Product.findById(
-        new mongoose.Types.ObjectId(productId)
-    );
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+        throw new ApiError(400, "Invalid product ID format.");
+    }
+
+    const product = await Product.findById(productId);
 
     if (!product) {
         throw new ApiError(404, "Product not found.");
     }
 
-    let cart = await Cart.findOne({
-        user: new mongoose.Types.ObjectId(loggedInUser._id),
-    });
+    let cart = await Cart.findOne({ user: loggedInUser._id });
 
     let newCart = {};
     if (!cart) {
@@ -52,18 +52,12 @@ const addItemToCart = asyncHandler(async (req, res) => {
         });
 
         if (!newCart) {
-            throw new ApiError(502, "Cart creation failed, cannot add item.");
+            throw new ApiError(500, "Failed to create cart. Please try again.");
         }
 
         return res
-            .status(200)
-            .json(
-                new ApiResponse(
-                    200,
-                    newCart,
-                    "Item added to your newly created cart."
-                )
-            );
+            .status(201)
+            .json(new ApiResponse(201, newCart, "Item added to a new cart."));
     }
 
     const existingItem = cart.items.find(
@@ -88,52 +82,58 @@ const addItemToCart = asyncHandler(async (req, res) => {
 
     return res
         .status(200)
-        .json(new ApiResponse(200, cart, "Item added to your cart."));
+        .json(
+            new ApiResponse(200, cart, "Item added to your cart successfully.")
+        );
 });
 
 const getUserCart = asyncHandler(async (req, res) => {
     const loggedInUser = req.user;
 
     if (!loggedInUser) {
-        throw new ApiError(409, "No logged in user found.");
+        throw new ApiError(401, "User not logged in.");
     }
 
-    const cart = await Cart.findOne({
-        user: new mongoose.Types.ObjectId(loggedInUser._id),
-    }).select("-user");
+    const cart = await Cart.findOne({ user: loggedInUser._id }).select("-user");
 
     if (!cart) {
-        throw new ApiError(404, "Cart not found.");
+        throw new ApiError(404, "Your cart is empty.");
     }
 
     return res
         .status(200)
-        .json(new ApiResponse(200, cart, "User cart fetched successfully."));
+        .json(new ApiResponse(200, cart, "Cart retrieved successfully."));
 });
 
 const updateItemQuantity = asyncHandler(async (req, res) => {
     const loggedInUser = req.user;
 
     if (!loggedInUser) {
-        throw new ApiError(409, "No logged in user found.");
+        throw new ApiError(401, "User not logged in.");
     }
 
     const { productId, change = 0 } = req.body;
 
     if (!productId || change === undefined) {
-        throw new ApiError("Please provide required fields.");
+        throw new ApiError(400, "Product ID and quantity change are required.");
     }
 
-    const cart = await Cart.findOne({
-        user: new mongoose.Types.ObjectId(loggedInUser._id),
-    });
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+        throw new ApiError(400, "Invalid product ID format.");
+    }
+
+    const cart = await Cart.findOne({ user: loggedInUser._id });
+
+    if (!cart) {
+        throw new ApiError(404, "Cart not found.");
+    }
 
     const item = cart.items.find(
-        (item) => item.productId.toString() === productId
+        (item) => item.product.Id.toString() === productId
     );
 
     if (!item) {
-        throw new ApiError("Item not found in the cart.");
+        throw new ApiError(404, "Item not found in the cart.");
     }
 
     item.quantity += Number(change);
@@ -142,16 +142,26 @@ const updateItemQuantity = asyncHandler(async (req, res) => {
         cart.items = cart.items.filter((item) => item.quantity > 0);
     }
 
-    await cart.save({ validateBeforeSave: true });
-
-    if (!cart.items.length) {
+    // If no items are left, delete the cart
+    if (cart.items.length === 0) {
         await Cart.findOneAndDelete({ user: loggedInUser._id });
+        return res
+            .status(200)
+            .json(
+                new ApiResponse(
+                    200,
+                    {},
+                    "Cart is now empty and has been deleted."
+                )
+            );
     }
+
+    await cart.save({ validateBeforeSave: true });
 
     return res
         .status(200)
         .json(
-            new ApiResponse(200, cart, "Item quantity changed successfully.")
+            new ApiResponse(200, cart, "Item quantity updated successfully.")
         );
 });
 
@@ -159,13 +169,17 @@ const removeItemFromCart = asyncHandler(async (req, res) => {
     const loggedInUser = req.user;
 
     if (!loggedInUser) {
-        throw new ApiError(409, "No logged in user found.");
+        throw new ApiError(401, "User not logged in.");
     }
 
     const { productId } = req.params;
 
     if (!productId) {
-        throw new ApiError("Product Id is required.");
+        throw new ApiError(400, "Product ID is required.");
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+        throw new ApiError(400, "Invalid product ID format.");
     }
 
     const cart = await Cart.findOne({ user: loggedInUser._id }).select("-user");
@@ -175,7 +189,7 @@ const removeItemFromCart = asyncHandler(async (req, res) => {
     }
 
     cart.items = cart.items.filter(
-        (item) => item.productId === new mongoose.Types.ObjectId(productId)
+        (item) => item.product.Id.toString() !== productId
     );
 
     await cart.save({ validateBeforeSave: true });
@@ -190,7 +204,7 @@ const removeItemFromCart = asyncHandler(async (req, res) => {
             new ApiResponse(
                 200,
                 cart,
-                "Item removed successfully from the cart."
+                "Item removed from your cart successfully."
             )
         );
 });
@@ -199,13 +213,13 @@ const clearCart = asyncHandler(async (req, res) => {
     const loggedInUser = req.user;
 
     if (!loggedInUser) {
-        throw new ApiError(409, "No logged in user found.");
+        throw new ApiError(401, "User not logged in.");
     }
 
     const cart = await Cart.findOneAndDelete({ user: loggedInUser._id });
 
     if (!cart) {
-        throw new ApiError(404, "Cart not found.");
+        throw new ApiError(404, "Cart not found or already empty.");
     }
 
     return res
