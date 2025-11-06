@@ -21,11 +21,29 @@ const createOffer = asyncHandler(async (req, res) => {
         throw new ApiError(400, "All required fields must be provided.");
     }
 
+    if (!offerExpiry || isNaN(new Date(offerExpiry))) {
+        throw new ApiError(400, "Invalid or missing offer expiry date.");
+    }
+    if (new Date(offerExpiry) <= new Date()) {
+        throw new ApiError(400, "Offer expiry must be a future date.");
+    }
+
+    const existingOffer = await Offer.findOne({
+        statement,
+        offerExpiry: { $gt: Date.now() },
+    });
+    if (existingOffer)
+        throw new ApiError(
+            409,
+            "An active offer with the same statement already exists."
+        );
+
     const newOffer = await Offer.create({
         statement: String(statement),
         discountPercent: Number(discountPercent),
         offerExpiry: new Date(String(offerExpiry)),
         "offeredBy.label": String(loggedInUser.role),
+        "offeredBy.id": loggedInUser._id,
     });
 
     const createdOffer = await Offer.findById(newOffer._id);
@@ -66,6 +84,13 @@ const updateOffer = asyncHandler(async (req, res) => {
 
     if (!(statement && discountPercent)) {
         throw new ApiError(400, "All required fields must be provided.");
+    }
+
+    if (!offerExpiry || isNaN(new Date(offerExpiry))) {
+        throw new ApiError(400, "Invalid or missing offer expiry date.");
+    }
+    if (new Date(offerExpiry) <= new Date()) {
+        throw new ApiError(400, "Offer expiry must be a future date.");
     }
 
     const offer = await Offer.findByIdAndUpdate(

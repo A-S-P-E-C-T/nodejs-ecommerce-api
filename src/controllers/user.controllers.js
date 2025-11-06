@@ -740,6 +740,22 @@ const deleteUser = asyncHandler(async (req, res) => {
         }
     );
 
+    // Anonymizing and expiring all offers made by the user
+    if (user.role !== "customer") {
+        await Offer.updateMany(
+            {
+                "offeredBy.label": user._id,
+            },
+            {
+                $set: {
+                    "offeredBy.label": null,
+                    "offeredBy.id": null,
+                    offerExpiry: Date.now(),
+                },
+            }
+        );
+    }
+
     return res
         .status(200)
         .json(new ApiResponse(200, {}, "User deleted successfully."));

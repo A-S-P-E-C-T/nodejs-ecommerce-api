@@ -18,11 +18,11 @@ const offerSchema = new Schema(
         offeredBy: {
             label: {
                 type: String,
-                enum: ["seller", "brand"],
-                default: "brand",
+                enum: ["seller", "admin"],
+                default: "seller",
                 required: true,
             },
-            sellerId: {
+            id: {
                 type: mongoose.Types.ObjectId,
                 ref: "User",
             },
