@@ -78,8 +78,8 @@ const addProduct = asyncHandler(async (req, res) => {
         category,
         brand,
         seller: loggedInUser._id,
-        price,
-        stock,
+        price: Number(price),
+        stock: Number(stock),
         isAvailable: stock >= 1,
         images: formattedImages,
         warrantyMonths: Number(warrantyMonths) || 0,
@@ -87,9 +87,7 @@ const addProduct = asyncHandler(async (req, res) => {
 
     if (!newProduct) {
         await Promise.all(
-            req.files.map((file) =>
-                deleteFromCloudinary(file.public_id, "images")
-            )
+            images.map((img) => deleteFromCloudinary(img.public_id, "image"))
         );
         throw new ApiError(500, "Error creating product.");
     }
@@ -106,12 +104,7 @@ const getAllProducts = asyncHandler(async (req, res) => {
 
     const { label, category, brand, seller, price, rating } = req.query;
 
-    if (!(label || category || brand || seller || price || rating)) {
-        throw new ApiError(
-            400,
-            "No information of products provided, can not fetch."
-        );
-    }
+    // No checks for missing filters: Allowing fetching all products
 
     const matchQuery = {};
 
@@ -121,8 +114,6 @@ const getAllProducts = asyncHandler(async (req, res) => {
     if (seller) matchQuery.seller = seller;
     if (price) matchQuery.price = Number(price);
     if (rating) matchQuery.rating = Number(rating);
-
-    console.log(matchQuery);
 
     const fetchedProducts = await Product.aggregate([
         {
@@ -135,9 +126,6 @@ const getAllProducts = asyncHandler(async (req, res) => {
             },
         },
     ]);
-
-    console.log(matchQuery);
-    console.log(fetchedProducts);
 
     if (!fetchedProducts || fetchedProducts.length === 0) {
         throw new ApiError(404, "No products found for the given filters");
@@ -193,8 +181,8 @@ const updateProduct = asyncHandler(async (req, res) => {
     }
 
     const updateFields = {};
-    if (price !== undefined) updateFields.price = price;
-    if (stock !== undefined) updateFields.stock = stock;
+    if (price !== undefined) updateFields.price = Number(price);
+    if (stock !== undefined) updateFields.stock = Number(stock);
     if (isAvailable !== undefined) updateFields.isAvailable = isAvailable;
 
     let product;
