@@ -1,4 +1,4 @@
-import mongoose, { mongo } from "mongoose";
+import mongoose from "mongoose";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -8,16 +8,17 @@ import {
     deleteFromCloudinary,
 } from "../utils/cloudinary.js";
 import { Rating } from "../models/rating.models.js";
+import fs from "fs";
 
 const addProduct = asyncHandler(async (req, res) => {
     const loggedInUser = req.user;
 
     if (!loggedInUser) {
-        throw new ApiError(400, "No seller logged in.");
+        throw new ApiError(401, "User not logged in.");
     }
 
     if (loggedInUser.role !== "seller") {
-        throw new ApiError(400, "Only sellers can add products.");
+        throw new ApiError(403, "Only sellers are allowed to add products.");
     }
 
     const {
@@ -52,7 +53,7 @@ const addProduct = asyncHandler(async (req, res) => {
             images.map((file) => deleteFromCloudinary(file.public_id, "image"))
         );
 
-        // Remove local temp files
+        // Remove local temporary files
         if (req.files.length !== 0) {
             req.files.forEach((file) => fs.unlinkSync(file.path));
         }
@@ -61,20 +62,16 @@ const addProduct = asyncHandler(async (req, res) => {
     }
 
     if (!images || images.length === 0) {
-        throw new ApiError(500, "No Product images uploaded.");
+        throw new ApiError(500, "No product images were uploaded.");
     }
 
     const formattedImages = images.map((image) => ({
         imageUrl: image.url,
         imagePublicId: image.public_id,
     }));
+
     const newProduct = await Product.create({
-        item: {
-            label,
-            color,
-            size,
-            material,
-        },
+        item: { label, color, size, material },
         category,
         brand,
         seller: loggedInUser._id,
@@ -89,36 +86,36 @@ const addProduct = asyncHandler(async (req, res) => {
         await Promise.all(
             images.map((img) => deleteFromCloudinary(img.public_id, "image"))
         );
-        throw new ApiError(500, "Error creating product.");
+        throw new ApiError(500, "Failed to create product.");
     }
 
     return res
         .status(201)
         .json(
-            new ApiResponse(201, newProduct, "Product created successfully!")
+            new ApiResponse(201, newProduct, "Product created successfully.")
         );
 });
 
 const getAllProducts = asyncHandler(async (req, res) => {
-    console.log(req.query);
-
     const { label, category, brand, seller, price, rating } = req.query;
 
-    // No checks for missing filters: Allowing fetching all products
-
+    // No filters required; supports fetching all products
     const matchQuery = {};
 
     if (label) matchQuery["item.label"] = label;
     if (category) matchQuery.category = category;
     if (brand) matchQuery.brand = brand;
-    if (seller) matchQuery.seller = seller;
+    if (seller) {
+        if (!mongoose.Types.ObjectId.isValid(seller)) {
+            throw new ApiError(400, "Invalid seller ID.");
+        }
+        matchQuery.seller = seller;
+    }
     if (price) matchQuery.price = Number(price);
     if (rating) matchQuery.rating = Number(rating);
 
     const fetchedProducts = await Product.aggregate([
-        {
-            $match: matchQuery,
-        },
+        { $match: matchQuery },
         {
             $project: {
                 stock: 0,
@@ -128,7 +125,7 @@ const getAllProducts = asyncHandler(async (req, res) => {
     ]);
 
     if (!fetchedProducts || fetchedProducts.length === 0) {
-        throw new ApiError(404, "No products found for the given filters");
+        throw new ApiError(404, "No products found for the given filters.");
     }
 
     return res
@@ -146,7 +143,11 @@ const getSingleProduct = asyncHandler(async (req, res) => {
     const { productId } = req.params;
 
     if (!productId) {
-        throw new ApiError(400, "Product id is required.");
+        throw new ApiError(400, "Product ID is required.");
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+        throw new ApiError(400, "Invalid product ID.");
     }
 
     const product = await Product.findById(productId).select(
@@ -166,18 +167,23 @@ const updateProduct = asyncHandler(async (req, res) => {
     const loggedInUser = req.user;
 
     if (!loggedInUser) {
-        throw new ApiError("No logged in user.");
+        throw new ApiError(401, "User not logged in.");
     }
 
     const { productId } = req.params;
 
     if (!productId) {
-        throw new ApiError(400, "Product Id is needed.");
+        throw new ApiError(400, "Product ID is required.");
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+        throw new ApiError(400, "Invalid product ID.");
     }
 
     const { price, stock, isAvailable } = req.body;
+
     if (!(price || stock || isAvailable)) {
-        throw new ApiError(400, "Please provide a field to update.");
+        throw new ApiError(400, "Please provide at least one field to update.");
     }
 
     const updateFields = {};
@@ -206,6 +212,7 @@ const updateProduct = asyncHandler(async (req, res) => {
     if (!product) {
         throw new ApiError(404, "Product not found.");
     }
+
     return res
         .status(200)
         .json(
@@ -221,12 +228,21 @@ const deleteProduct = asyncHandler(async (req, res) => {
     const loggedInUser = req.user;
 
     if (!loggedInUser) {
-        throw new ApiError("No logged in user.");
+        throw new ApiError(401, "User not logged in.");
     }
 
     const { productId } = req.params;
 
+    if (!productId) {
+        throw new ApiError(400, "Product ID is required.");
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+        throw new ApiError(400, "Invalid product ID.");
+    }
+
     let product;
+
     if (loggedInUser.role === "seller") {
         product = await Product.findOneAndDelete({
             _id: productId,
@@ -239,16 +255,14 @@ const deleteProduct = asyncHandler(async (req, res) => {
     }
 
     if (!product) {
-        throw new ApiError(404, "Product does not exist.");
+        throw new ApiError(404, "Product not found or already deleted.");
     }
 
-    await Rating.deleteMany({
-        product: new mongoose.Types.ObjectId(productId),
-    });
+    await Rating.deleteMany({ product: productId });
 
     return res
         .status(200)
-        .json(new ApiResponse(200, product, "Product deleted Successfully."));
+        .json(new ApiResponse(200, product, "Product deleted successfully."));
 });
 
 export {
