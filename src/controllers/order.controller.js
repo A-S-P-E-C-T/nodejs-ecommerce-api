@@ -30,6 +30,9 @@ const createOrder = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Failed to create order. Please try again.");
     }
 
+    // Clear the user's cart
+    await Cart.findOneAndDelete({ user: loggedInUser._id });
+
     return res
         .status(201)
         .json(new ApiResponse(201, newOrder, "Order created successfully."));

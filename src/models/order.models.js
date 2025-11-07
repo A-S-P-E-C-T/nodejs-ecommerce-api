@@ -55,11 +55,6 @@ const orderSchema = new Schema(
             enum: ["pending", "processing", "completed"],
             default: "pending",
         },
-        // estimatedDeliveryTimeInDays: {
-        //     type: Number,
-        //     required: true,
-        //     min: 1,
-        // },
     },
     { timestamps: true }
 );
