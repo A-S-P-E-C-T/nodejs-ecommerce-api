@@ -17,6 +17,8 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { Rating } from "../models/rating.models.js";
 import ms from "ms";
+import { Offer } from "../models/offer.models.js";
+import { Order } from "../models/order.models.js";
 
 const generateAccessAndRefreshToken = async (userId) => {
     try {
@@ -690,6 +692,20 @@ const deleteUserAccountRequest = asyncHandler(async (req, res) => {
         throw new ApiError("No user exists with the given credentials.");
     }
 
+    const orders = await Order.find({ customer: user._id });
+    console.log(orders);
+
+    if (orders.length !== 0) {
+        orders.forEach((order) => {
+            if (order.orderStatus !== "delivered") {
+                throw new ApiError(
+                    404,
+                    "User has active orders, can not initialize account deletation."
+                );
+            }
+        });
+    }
+
     const deleteUserUrl = `${process.env.FRONTEND_URL}/delete-user/${unhashedToken}`;
 
     await sendEmail({
@@ -752,6 +768,23 @@ const deleteUser = asyncHandler(async (req, res) => {
                     "offeredBy.id": null,
                     offerExpiry: Date.now(),
                 },
+            }
+        );
+    }
+    // Anonymizing all orders made by the user
+    if (user.role === "customer") {
+        await Order.updateMany(
+            {
+                customer: user._id,
+            },
+            {
+                $set: {
+                    customer: null,
+                    delhiveryAddress: null,
+                },
+            },
+            {
+                runValidators: false,
             }
         );
     }
