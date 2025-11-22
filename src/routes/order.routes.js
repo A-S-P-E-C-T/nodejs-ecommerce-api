@@ -14,7 +14,7 @@ const orderRouter = Router();
 orderRouter.route("/create-order").post(verifyJWT, createOrder);
 orderRouter.route("/get-user-orders").get(verifyJWT, getUserOrders);
 orderRouter.route("/get-single-order/:orderId").get(verifyJWT, getSingleOrder);
-orderRouter.delete("/cancel-order/:orderId").get(verifyJWT, cancelOrder);
+orderRouter.route("/cancel-order/:orderId").delete(verifyJWT, cancelOrder);
 orderRouter
     .route("/update-order-status/:orderId")
     .patch(verifyJWT, updateOrderStatus);

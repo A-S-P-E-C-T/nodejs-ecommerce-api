@@ -43,7 +43,6 @@ const productSchema = new Schema(
                 imagePublicId: { type: String, required: true },
             },
         ],
-        imagesPublicId: [{ type: String, required: true }],
         warrantyMonths: {
             type: Number,
             default: 0,
